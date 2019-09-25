@@ -352,17 +352,20 @@ print.haploNet <- function(x, ...)
     }
 }
 
-.mutationRug <- function(x0, y0, x1, y1, n, space = 0.05, length = 0.2)
+.mutationRug <- function(x0, y0, x1, y1, n, size1, size2, space = 0.05, length = 0.2, smartlinks=T)
 {
     ## convert inches into user-coordinates:
     l <- xinch(length)
     sp <- xinch(space)
     for (i in seq_along(x0)) {
+        r1 <- size1[i]/2
+        r2 <- size2[i]/2
         xstart <- seq(-(sp*(n[i] - 1))/2, by = sp, length.out = n[i])
         ystart <- rep(-l/2, n[i])
         xstop <- xstart
         ystop <- -ystart
         ## rotation if the line is not horizontal
+        theta <- 0
         if (y0[i] != y1[i]) {
             theta <- atan2(y1[i] - y0[i], x1[i] - x0[i])
             tmpstart <- rect2polar(xstart, ystart)
@@ -378,9 +381,14 @@ print.haploNet <- function(x, ...)
             xstop <- xy.stop$x
             ystop <- xy.stop$y
         }
-        ## translation:
+        ## translation, placing marks between the radii of the circles rather than
+        ## just the center of the link (unless specified otherwise):
         xm <- (x0[i] + x1[i])/2
         ym <- (y0[i] + y1[i])/2
+        if (smartlinks) {
+          xm <- ((x0[i]+(r1*cos(theta))) + (x1[i]-(r2*cos(theta))))/2
+          ym <- ((y0[i]+(r1*sin(theta))) + (y1[i]-(r2*sin(theta))))/2
+        }
         xstart <- xstart + xm
         ystart <- ystart + ym
         xstop <- xstop + xm
@@ -399,7 +407,7 @@ print.haploNet <- function(x, ...)
     l1 <- link[, 1]
     l2 <- link[, 2]
     switch(method, {
-        .mutationRug(xx[l1], yy[l1], xx[l2], yy[l2], step)
+        .mutationRug(xx[l1], yy[l1], xx[l2], yy[l2], step, size[l1], size[l2])
     }, {
         ld1 <- step
         ld2 <- step# * scale.ratio
