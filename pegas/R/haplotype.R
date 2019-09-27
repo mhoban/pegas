@@ -335,7 +335,7 @@ print.haploNet <- function(x, ...)
     }
 }
 
-.drawAlternativeLinks <- function(xx, yy, altlink, threshold, show.mutation)
+.drawAlternativeLinks <- function(xx, yy, altlink, threshold, show.mutation, show.single)
 {
     s <- altlink[, 3] >= threshold[1] & altlink[, 3] <= threshold[2]
     if (!any(s)) return(NULL)
@@ -348,7 +348,7 @@ print.haploNet <- function(x, ...)
         n <- length(xx)
         .labelSegmentsHaploNet(xx, yy, altlink[s, 1:2, drop = FALSE],
                                altlink[s, 3, drop = FALSE], rep(1, n),
-                               1, "black", show.mutation)
+                               1, "black", show.mutation, show.single=show.single)
     }
 }
 
@@ -397,7 +397,7 @@ print.haploNet <- function(x, ...)
     }
 }
 
-.labelSegmentsHaploNet <- function(xx, yy, link, step, size, lwd, col.link, method)
+.labelSegmentsHaploNet <- function(xx, yy, link, step, size, lwd, col.link, method, show.single=F, smartlinks=T)
 {
 ### method: the way the segments are labelled
 ### 1: small segments
@@ -407,11 +407,16 @@ print.haploNet <- function(x, ...)
     l1 <- link[, 1]
     l2 <- link[, 2]
     switch(method, {
-        .mutationRug(xx[l1], yy[l1], xx[l2], yy[l2], step, size[l1], size[l2])
+        if (show.single == F)
+          step <- step-1
+        .mutationRug(xx[l1], yy[l1], xx[l2], yy[l2], step, size[l1], size[l2], smartlinks=smartlinks)
     }, {
+        if (show.single == F)
+          step <- step-1
         ld1 <- step
         ld2 <- step# * scale.ratio
         for (i in seq_along(ld1)) {
+            if (ld1[i] == 0) next
             pc <- ((1:ld1[i]) / (ld1[i] + 1) * ld2[i] + size[l1[i]]/2) / (ld2[i] + (size[l1[i]] + size[l2[i]])/2)
             xr <- pc * (xx[l2[i]] - xx[l1[i]]) +  xx[l1[i]]
             yr <- pc * (yy[l2[i]] - yy[l1[i]]) +  yy[l1[i]]
@@ -421,6 +426,13 @@ print.haploNet <- function(x, ...)
     }, {
         x <- (xx[l1] + xx[l2])/2
         y <- (yy[l1] + yy[l2])/2
+        if (smartlinks) {
+          r1 <- size[l1]/2
+          r2 <- size[l2]/2
+          theta <- atan2(yy[l2]-yy[l1],xx[l2]-xx[l1])
+          x <- ((xx[l1]+(r1*cos(theta))) + (xx[l2]-(r2*cos(theta))))/2
+          y <- ((yy[l1]+(r1*sin(theta))) + (yy[l2]-(r2*sin(theta))))/2
+        }
         BOTHlabels(step, NULL, x, y, c(0.5, 0.5), "rect", NULL, NULL,
                    NULL, NULL, "black", "lightgrey", FALSE, NULL, NULL)
     })
@@ -449,6 +461,7 @@ replot <- function(xy = NULL, ...)
     show.mutation <- Last.phn$show.mutation
     altlink <- Last.phn$alter.links
     threshold <- Last.phn$threshold
+    show.single <- Last.phn$show.single
 
     if (is.character(labels)) {
         font <- Last.phn$font
@@ -482,9 +495,9 @@ replot <- function(xy = NULL, ...)
                  lty = lty, col = col.link)
         if (show.mutation)
             .labelSegmentsHaploNet(xx, yy, cbind(l1, l2), step, size, lwd,
-                                   col.link, as.numeric(show.mutation))
+                                   col.link, as.numeric(show.mutation), show.single=show.single)
         if (!is.null(altlink) && !identical(as.numeric(threshold), 0))
-            .drawAlternativeLinks(xx, yy, altlink, threshold, show.mutation)
+            .drawAlternativeLinks(xx, yy, altlink, threshold, show.mutation, show.single=show.single)
         .drawSymbolsHaploNet(xx, yy, size, col, bg, pie)
         if (is.character(labels))
             text(xx, yy, labels, font = font, cex = cex)
@@ -500,7 +513,7 @@ plot.haploNet <-
              col.link = "black", lwd = 1, lty = 1, pie = NULL,
              labels = TRUE, font = 2, cex = 1, scale.ratio = 1,
              asp = 1, legend = FALSE, fast = FALSE, show.mutation = 1,
-             threshold = c(1, 2), ...)
+             threshold = c(1, 2), show.single = T, ...)
 {
     par(xpd = TRUE)
     link <- x[, 1:2, drop = FALSE]
@@ -699,7 +712,7 @@ plot.haploNet <-
     ## draw alternative links
     altlink <- attr(x, "alter.links")
     if (!is.null(altlink) && !identical(as.numeric(threshold), 0))
-        .drawAlternativeLinks(xx, yy, altlink, threshold, show.mutation)
+        .drawAlternativeLinks(xx, yy, altlink, threshold, show.mutation, show.single=show.single)
 
     if (show.mutation) {
         if (show.mutation == 1 && all(x[, 3] < 1)) {
@@ -707,7 +720,7 @@ plot.haploNet <-
             show.mutation <- 3
         }
         .labelSegmentsHaploNet(xx, yy, link, x[, 3], size, lwd, col.link,
-                               show.mutation)
+                               show.mutation, show.single=show.single)
     }
 
     .drawSymbolsHaploNet(xx, yy, size, col, bg, pie)
@@ -746,7 +759,7 @@ plot.haploNet <-
                 col = col, bg = bg, lwd = lwd, lty = lty, col.link = col.link,
                 labels = labels, font = font, cex = cex, asp = asp, pie = pie,
                 show.mutation = show.mutation, alter.links = altlink,
-                threshold = threshold),
+                threshold = threshold,show.single=show.single),
            envir = .PlotHaploNetEnv)
 }
 
