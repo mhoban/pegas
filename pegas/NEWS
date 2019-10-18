@@ -1,4 +1,4 @@
-		CHANGES IN PEGAS VERSION 0.11-12
+		CHANGES IN PEGAS VERSION 0.11-14
 
 
 NEW FEATURES
@@ -23,12 +23,15 @@ NEW FEATURES
       object into the S4 class "SnpMatrix" of the BioConductor package
       snpStats.
 
+    o The three new functions allelicrichness, rarefactionplot, and
+      rhost analyse allelic richness with various methods.
+
     o There is a new default method sw() which can use genomic
       positions. sw() now returns an object of class "sw" for which
       there is a plot() method.
 
     o There are two new methods as.phylo() and as.evonet() for the
-      class "haploNet".
+          class "haploNet".
 
     o site.spectrum() is now generic with methods for "DNAbin" (old
       code) and for "loci" (new code). The returned object now has an
@@ -80,6 +83,8 @@ BUG FIXES
 
 
 OTHER CHANGES
+
+    o summary.loci() is around 4 times faster.
 
     o dist.snp() will be removed in the next release: its code has
       been incorporated in dist.asd(), and it now gives a warning.
