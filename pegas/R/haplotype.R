@@ -427,6 +427,7 @@ print.haploNet <- function(x, ...)
         x <- (xx[l1] + xx[l2])/2
         y <- (yy[l1] + yy[l2])/2
         if (smartlinks) {
+          # place mutations label at the center between radii
           r1 <- size[l1]/2
           r2 <- size[l2]/2
           theta <- atan2(yy[l2]-yy[l1],xx[l2]-xx[l1])
