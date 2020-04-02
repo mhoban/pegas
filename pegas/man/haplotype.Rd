@@ -16,7 +16,8 @@
 }
 \usage{
 haplotype(x, ...)
-\method{haplotype}{DNAbin}(x, labels = NULL, ...)
+\method{haplotype}{DNAbin}(x, labels = NULL, strict = FALSE,
+                  trailingGapsAsN = TRUE, ...)
 \method{haplotype}{character}(x, labels = NULL, ...)
 \method{haplotype}{numeric}(x, labels = NULL, ...)
 \method{plot}{haplotype}(x, xlab = "Haplotype", ylab = "Number", ...)
@@ -33,6 +34,11 @@ haplotype(x, ...)
   \item{object}{an object of class \code{"haplotype"}.}
   \item{labels}{a vector of character strings used as names for the rows
     of the returned object. By default, Roman numerals are given.}
+  \item{strict}{a logical value; if \code{TRUE}, ambiguities and gaps in
+    the sequences are ignored.}
+  \item{trailingGapsAsN}{a logical value; if \code{TRUE} (the default),
+    the leading and trailing alignment gaps are considered as unknown
+    bases (i.e., N).}
   \item{xlab, ylab}{labels for the x- and x-axes.}
   \item{\dots}{further arguments passed to
     \code{\link[graphics]{barplot}} (unused in \code{print} and
@@ -45,6 +51,11 @@ haplotype(x, ...)
     \code{"labels"}, or an unambiguous abbreviation of these.}
 }
 \details{
+The way ambiguities in the sequences are taken into account is explained
+in a post to r-sig-phylo (see the examples below):
+
+\url{https://www.mail-archive.com/r-sig-phylo@r-project.org/msg05541.html}
+
 The \code{sort} method sorts the haplotypes in decreasing frequencies
 (the default) or in alphabetical order of their labels (if \code{what =
 "labels"}). Note that if these labels are Roman numerals (as assigned by
@@ -83,6 +94,37 @@ attr(h, "index")[[1]]
 plot(sort(h))
 ## get the frequencies in a named vector:
 setNames(lengths(attr(h, "index")), labels(h))
+
+## data posted by Hirra Farooq on r-sig-phylo (see link above):
+cat(">[A]\nCCCGATTTTATATCAACATTTATTT------",
+    ">[D]\nCCCGATTTT----------------------",
+    ">[B]\nCCCGATTTTATATCAACATTTATTT------",
+    ">[C]\nCCCGATTTTATATCACCATTTATTTTGATTT",
+    file = "x.fas", sep = "\n")
+x <- read.dna("x.fas", "f")
+unlink("x.fas")
+
+## show the sequences and the distances:
+alview(x)
+dist.dna(x, "N", p = TRUE)
+
+## by default there are 3 haplotypes with a warning about ambiguity:
+haplotype(x)
+
+## the same 3 haplotypes without warning:
+haplotype(x, strict = TRUE)
+
+## if we remove the last sequence there is, by default, a single haplotype with a warning:
+haplotype(x[-4, ])
+
+## to get two haplotypes separately as with the complete data:
+haplotype(x[-4, ], strict = TRUE)
+
+## a simpler example:
+y <- as.DNAbin(matrix(c("A", "A", "A", "A", "R", "-"), 3))
+haplotype(y) # 1 haplotype
+haplotype(y, strict = TRUE) # 3 haplotypes
+haplotype(y, trailingGapsAsN = FALSE) # 2 haplotypes
 }
 \keyword{manip}
 \keyword{hplot}

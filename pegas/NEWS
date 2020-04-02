@@ -1,11 +1,23 @@
-		CHANGES IN PEGAS VERSION 0.12-1
+		CHANGES IN PEGAS VERSION 0.13
+
+
+NEW FEATURES
+
+    o haplotype.DNA() now handles ambiguities and gaps in an improved
+      way (see the reference in ?haplotype.DNA). Two options have been
+      added to control the behaviour of these analyses: strict = FALSE
+      and trailingGapsAsN = TRUE.
+
+    o The new functions geoTrans2 transforms latitudes and longitudes
+      from values in decimal degree to character strings (optionally
+      with LaTeX format).
 
 
 BUG FIXES
 
-    o VCFloci() crashed if a relative path starting with "~" was used.
+    o VCFloci() crashed if a path starting with "~" was used.
 
-    o VCF files with large header (> 1MB) failed to be read.
+    o VCF files with large header (> 1 MB) failed to be read.
 
 
 

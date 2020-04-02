@@ -1,6 +1,6 @@
-/* pegas.c    2019-10-03 */
+/* pegas.c    2020-03-04 */
 
-/* Copyright 2015-2019 Emmanuel Paradis */
+/* Copyright 2015-2020 Emmanuel Paradis */
 
 /* This file is part of the R-package `pegas'. */
 /* See the file ../DESCRIPTION for licensing issues. */
@@ -9,40 +9,194 @@
 #include <R_ext/Rdynload.h>
 #include <Rinternals.h>
 
+/* returns 8 if the base is known surely, 0 otherwise */
+#define KnownBase(a) (a & 8)
+
 /* returns 1 if both bases are different surely, 0 otherwise */
 #define DifferentBase(a, b) (a & b) < 16
 
-void haplotype_DNAbin(unsigned char *x, int *n, int *s, int *haplo)
+int identical_seqs(unsigned char *x, int i, int j, int n, int s)
 {
-    int i1, i2, s1, s2, flag, k;
+    int k = i + n * (s - 1);
+    for (;;) {
+	if (x[i] != x[j]) return 0;
+	i += n;
+	j += n;
+	if (i > k) break;
+    }
+    return 1;
+}
 
-    i1 = 0;
-    while (i1 < *n - 1) {
-	if (!haplo[i1]) {
-	    i2 = i1 + 1;
-	    while (i2 < *n) {
-		if (!haplo[i2]) {
-		    s1 = i1;
-		    s2 = i2;
-		    k = 0;
-		    flag = 1; /* initially the two sequences are considered identical */
-		    while (k < *s) {
-			if (x[s1] != x[s2] && x[s1] > 0x07 && x[s2] > 0x07) { /* fix the fact that a and b could be gaps (-) or completely missing (?) */
-			    if (DifferentBase(x[s1], x[s2])) {
-				flag = 0;
-				break;
-			    }
-			}
-			s1 += *n;
-			s2 += *n;
-			k++;
-		    }
-		    if (flag) haplo[i2] = i1 + 1;
-		}
-		i2++;
+void order_int(int *x, int *index, int n)
+{
+    int i, k, m = 1;
+
+    while (m <= n) {
+	k = 0;
+	while (index[k]) k++;
+	if (m == n) {
+	    index[k] = m;
+	} else {
+	    for (i = 0; i < n; i++)
+		if (index[i] == 0 && x[i] < x[k]) k = i;
+	    index[k] = m;
+	}
+	m++;
+    }
+}
+
+int anyElementZero(int *x, int n)
+{
+    int i;
+    for (i = 0; i < n; i++) {
+	if (!x[i]) return 1;
+    }
+    return 0;
+}
+
+void update_dist_mat(int *D, int n, int j)
+{
+    int i;
+    for (i = 0; i < n; i++) D[i + n * j] = 1;
+    for (i = 0; i < n; i++) D[j + n * i] = 1;
+}
+
+/* Description of the algorihm:
+   https://www.mail-archive.com/r-sig-phylo@r-project.org/msg05541.html */
+void haplotype_DNAbin(unsigned char *x, int *n, int *s, int *haplo, int *warn, int *strict, int *trailingGapsAsN)
+{
+    int i, j, k, *ihap, Nhaplo, new_haplo;
+    /* i: index of the sequence, j: index of the haplotype */
+
+    /* step 1 */
+    ihap = (int *)R_alloc(*n, sizeof(int)); /* safe allocation */
+    ihap[0] = 0; /* the 1st sequence is always the 1st haplotype */
+    Nhaplo = 1;
+
+    for (i = 1; i < *n; i++) { /* start with the 2nd sequence */
+	new_haplo = 1;
+	for (k = 0; k < Nhaplo; k++) { /* loop among the haplotypes */
+	    j = ihap[k];
+	    if (identical_seqs(x, i, j, *n, *s)) {
+		haplo[i] = j + 1;
+		new_haplo = 0;
+		break;
 	    }
 	}
-	i1++;
+	if (new_haplo) {
+	    ihap[Nhaplo] = i;
+	    Nhaplo++;
+	}
+    }
+
+    if (*strict) return;
+
+    if (*trailingGapsAsN) { /* step 2 */
+	for (i = 0; i < Nhaplo; i++) { /* leading gaps */
+	    j = ihap[i]; /* start of the seq */
+	    k = j + *n * (*s - 1); /* last site of seq j */
+	    while (x[j] == 4 && j <= k) {
+		x[j] = 240; /* - -> N */
+		j += *n;
+	    }
+	}
+	for (i = 0; i < Nhaplo; i++) { /* trailing gaps */
+	    k = ihap[i]; /* start of the seq */
+	    j = k + *n * (*s - 1); /* the last site of seq j */
+	    while (x[j] == 4 && j >= k) {
+		x[j] = 240; /* - -> N */
+		j -= *n;
+	    }
+	}
+    }
+
+    /* step 3 */
+    int *D, ii, jj, S, Ndist = Nhaplo*Nhaplo;
+    D = (int *)R_alloc(Ndist, sizeof(int));
+    /* initialise the diagonal with 1's: */
+    for (i = 0; i < Nhaplo; i++) D[i + Nhaplo * i] = 1;
+
+    for (i = 0; i < Nhaplo - 1; i++) {
+	for (j = i + 1; j < Nhaplo; j++) {
+	    ii = ihap[i];
+	    jj = ihap[j];
+	    S = 0;
+	    k = ii + *n * (*s - 1); /* the last site of seq i */
+	    /* no need to compute the real distance,
+	       just need to know if it is > 0 */
+	    while (ii <= k && S == 0) {
+		if (DifferentBase(x[ii], x[jj])) S++;
+		ii += *n;
+		jj += *n;
+	    }
+	    D[i + Nhaplo * j] = D[j + Nhaplo * i] = S;
+	}
+    }
+
+    if (!anyElementZero(D, Ndist)) return;
+
+    int *NknownBases;
+    NknownBases = (int *)R_alloc(Nhaplo, sizeof(int));
+    memset(NknownBases, 0, Nhaplo * sizeof(int));
+    for (i = 0; i < Nhaplo; i++) {
+	j = ihap[i];
+	k = j + *n * (*s - 1);
+	while (j <= k) {
+	    if (KnownBase(x[j])) (NknownBases[i])++;
+	    j += *n;
+	}
+    }
+
+    int *index;
+    index = (int *)R_alloc(Nhaplo, sizeof(int));
+    memset(index, 0, Nhaplo * sizeof(int));
+    /* order of haplotypes with decreasing numbers of missing data: */
+    order_int(NknownBases, index, Nhaplo);
+
+    /* a buffer to store haplotype indices below: */
+    int NdistZero, *buf;
+    buf = (int *)R_alloc(Nhaplo, sizeof(int));
+
+    /* step 4 */
+    for (;;) {
+	for (i = 0; i < Nhaplo; i++) {
+	    ii = 0;
+	    /* find the haplotypes with the largest number of missing data */
+	    while (index[ii] - 1 != i) ii++;
+	    NdistZero = 0;
+	    for (j = 0; j < Nhaplo; j++) {
+		if (j == ii) continue; /* skip the diagonal */
+		if (!D[ii + Nhaplo * j]) {
+		    buf[NdistZero] = j;
+		    NdistZero++;
+		}
+	    }
+	    if (NdistZero > 1) {
+/* check that the 2+ haplotypes with dist=0 to 'ii' don't have also dist=0 among them;
+   if yes then all are pooled in the same haplotype, if no keep all separate */
+		int allOthersZero = 1;
+		/* use 'j' and 'k' to store the indices of the haplotype pair */
+		for (jj = 0; jj < NdistZero - 1; jj++) {
+		    j = buf[jj];
+		    for (S = jj + 1; S < NdistZero; S++) {
+			k = buf[S];
+			if (D[j + Nhaplo * k]) allOthersZero = 0;
+		    }
+		}
+		if (allOthersZero) NdistZero = 1; else warn[1] = 1;
+/* no need to keep all these haplotypes now, just set NdistZero = 1 and the haplotypes will be pooled together at a later iteration */
+	    }
+	    if (NdistZero == 1) {
+		int z = buf[0] + 1;
+		warn[0] = 1;
+		k = ihap[ii] + 1;
+		for (jj = 0; jj < *n; jj++)
+		    if (haplo[jj] == k) haplo[jj] = z;
+		haplo[ii] = z;
+	    }
+	    update_dist_mat(D, Nhaplo, ii);
+	    if (!anyElementZero(D, Ndist)) return;
+	}
     }
 }
 
@@ -107,7 +261,7 @@ SEXP unique_haplotype_loci(SEXP x, SEXP NROW, SEXP NCOL)
 }
 
 static R_CMethodDef C_entries[] = {
-    {"haplotype_DNAbin", (DL_FUNC) &haplotype_DNAbin, 4},
+    {"haplotype_DNAbin", (DL_FUNC) &haplotype_DNAbin, 7},
     {"distDNA_pegas", (DL_FUNC) &distDNA_pegas, 4},
     {NULL, NULL, 0}
 };
